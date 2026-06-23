@@ -1,13 +1,11 @@
 import pandas as pd
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
 def main():
@@ -26,6 +24,13 @@ def main():
     print("- Finished exporting data")
     print("Finished script")
 
+def get_update_period():
+    try:
+        update_period_hrs = sys.argv[1]
+    except IndexError:
+        update_period_hrs = 6
+    return float(update_period_hrs)
+
 def handle_connection_to_url(url):
     print(f"- Setting up selenium driver")
     options = Options()
@@ -33,7 +38,7 @@ def handle_connection_to_url(url):
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--headless=new")
 
-    driver = webdriver.Remote("http://localhost:4444",DesiredCapabilities.CHROME, options=options)
+    driver = webdriver.Chrome(options=options)
 
     # #fetch url
     print(f"- Fetching html from url")
@@ -178,7 +183,7 @@ def export_to_index_html(df_html_str):
     """
     page_html = template.format(
             last_update_epoch=int(datetime.now(tz=timezone.utc).timestamp()),
-            update_period_epoch=3600,
+            update_period_epoch=get_update_period() * 3600,
             table=df_html_str
         )    
 

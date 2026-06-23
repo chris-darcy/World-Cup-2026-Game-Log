@@ -20,9 +20,9 @@ function getUpdateTimes() {
   console.log(`Next Update - Now: ${nextUpdate - now}`);
 
   document.getElementById('last-update').innerHTML =
-    "Last Update: " + hoursSinceLast.toFixed(2) + "hrs ago";
+    "Last Update: " + hoursSinceLast.toFixed(1) + "hrs ago";
   document.getElementById('next-update').innerHTML =
-    "Next Update: " + hoursUntilNext.toFixed(2) + "hrs away";
+    "Next Update: " + hoursUntilNext.toFixed(1) + "hrs away";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
