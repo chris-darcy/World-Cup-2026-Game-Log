@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime, timezone
 from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -10,33 +11,23 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
 def main():
-
     print("Starting script")
-
     url = "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums"
-    print(f"- Fetching html from url")
     driver = handle_connection_to_url(url)
-    print("- Fetched Url")
-
     #get played match data
     elems = driver.find_elements(By.TAG_NAME,"a")
-    print(f"- Found {len(elems)} <a> elements")
-   
-    played_match_text = filter_for_played_match_text(elems)
-    print(f"- Filtered to {len(played_match_text)} concluded matches")
-
+    print(f"- Found {len(elems)} <a> elements") 
+    played_matches = filter_for_played_matches(elems)
     driver.quit()
     print("- Closed driver connection")
-
-    df_long = parse_to_data_table_long(played_match_text)
-    print("- Created data table from matches")
-
-    df_long.to_html("index.html")
+    df_long = parse_to_data_table_long(played_matches)
+    df_html_str = df_long.to_html()
+    export_to_index_html(df_html_str)
     print("- Finished exporting data")
-
     print("Finished script")
 
 def handle_connection_to_url(url):
+    print(f"- Setting up selenium driver")
     options = Options()
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
@@ -45,6 +36,7 @@ def handle_connection_to_url(url):
     driver = webdriver.Remote("http://localhost:4444",DesiredCapabilities.CHROME, options=options)
 
     # #fetch url
+    print(f"- Fetching html from url")
     driver.get(url)
 
     # wait for page to load and capture HTML
@@ -54,6 +46,8 @@ def handle_connection_to_url(url):
         WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.ID, "onetrust-reject-all-handler"))).click()
     except Exception:
         pass
+
+    print("- Fetched Url")
 
     return driver
 
@@ -65,12 +59,7 @@ def parse_to_data_table_wide(matches):
     teamA_score=[]
     teamB_name =[]
     teamB_score=[]
-    for match in matches:
-        teams = match.split("-")
-        if len(teams) != 2:
-            print(f"skipping match: {i}")
-            continue
-
+    for teams in matches:
         match_n.append(i)
         parts = teams[0].split()
         teamA_score.append(parts[-1])
@@ -100,12 +89,7 @@ def parse_to_data_table_long(matches):
     team=[]
     score=[]
     result=[]
-    for match in matches:
-        teams = match.split("-")
-        if len(teams) != 2:
-            print(f"skipping match: {i}")
-            continue
-
+    for teams in matches:
         s = get_stage(i)
         stage.append(s)
         stage.append(s)
@@ -121,6 +105,8 @@ def parse_to_data_table_long(matches):
         result.append(get_score_outcome(rhs[0], lhs[-1]))
 
         i+=1
+    
+    print("- Created data table from matches")
 
     return pd.DataFrame(
         {
@@ -140,14 +126,18 @@ def get_score_outcome(score1, score2):
     else:
         return "Draw"
 
-def filter_for_played_match_text(elems):
+def filter_for_played_matches(elems):
     result = []
     # naive range check
     temp = elems[23:135]
 
     for line in temp:
-        if " v " in line.text: continue # yet to be played
-        if "-" in line.text: result.append(line.text)
+        if " v " in line.text: continue
+        if "-" not in line.text: continue
+        parts = line.text.split("-")
+        if len(parts) == 2: result.append(parts)
+
+    print(f"- Found {len(result)} concluded matches")
         
     return result
 
@@ -168,6 +158,34 @@ def get_stage(match_number):
     elif match_number == 104: return "Final"
     else:
         return "Unknown Stage"
+    
+def export_to_index_html(df_html_str):
+    template = """
+    <html>
+    <head>
+        <title>World Cup 2026 Match Results</title>
+        <h1 data-last-update="{last_update_epoch}"></h1>
+        <h1 data-update-period="{update_period_epoch}"></h1>
+    </head>
+    <body>
+        <h1>World Cup 2026 Match Results</h1>
+        <p id="last-update"></p>
+        <p id="next-update"></p>
+        {table}
+    </body>
+    <script src="index.js" defer></script>
+    </html>
+    """
+    page_html = template.format(
+            last_update_epoch=int(datetime.now(tz=timezone.utc).timestamp()),
+            update_period_epoch=3600,
+            table=df_html_str
+        )    
+
+    index_file_path = Path(__file__).parent / "index.html"
+    with open(index_file_path, "w") as f:
+        f.write(page_html)
+    print(f"- Exported data to {index_file_path}")
 
 if __name__ == "__main__":
     main()
